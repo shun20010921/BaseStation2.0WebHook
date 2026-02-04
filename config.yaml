@@ -1,0 +1,16 @@
+base_stations:
+- id: bs1
+  mac_address: F3:F1:E5:3D:F2:EA
+  name: LHB-30600B70
+- id: bs2
+  mac_address: F6:45:64:6B:73:88
+  name: LHB-48BB762D
+- id: bs3
+  mac_address: DB:59:35:E0:A7:86
+  name: LHB-E32883FA
+bluetooth:
+  connection_timeout: 15
+  scan_timeout: 10
+server:
+  host: 0.0.0.0
+  port: 5000
