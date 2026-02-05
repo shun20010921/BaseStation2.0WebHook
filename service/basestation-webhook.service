@@ -1,0 +1,15 @@
+[Unit]
+Description=VIVE Base Station Webhook Controller
+After=network.target bluetooth.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/BaseStationWebhook
+ExecStart=/usr/bin/python3 run.py serve
+Restart=always
+RestartSec=10
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

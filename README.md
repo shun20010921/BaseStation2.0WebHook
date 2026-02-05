@@ -78,6 +78,39 @@ python run.py off --id bs1            # 特定のBase Station OFF
 | POST | `/api/basestations/all/on` | 全Base Station 電源ON |
 | POST | `/api/basestations/all/off` | 全Base Station 電源OFF |
 
+## Linux Service Setup (systemd)
+
+Ubuntu / Raspberry Pi OS 等で自動起動させるための設定です。
+
+1. リポジトリを `/opt/` に配置します (例):
+   ```bash
+   sudo mv BaseStationWebhook /opt/
+   cd /opt/BaseStationWebhook
+   pip install -r requirements.txt
+   ```
+
+2. サービスファイルをコピーします:
+   ```bash
+   sudo cp service/basestation-webhook.service /etc/systemd/system/
+   ```
+
+3. サービスファイルを編集してユーザーやパスを調整してください (必要な場合):
+   ```bash
+   sudo nano /etc/systemd/system/basestation-webhook.service
+   ```
+
+4. サービスを有効化・起動します:
+   ```bash
+   sudo systemctl daemon-reload
+   sudo systemctl enable basestation-webhook
+   sudo systemctl start basestation-webhook
+   ```
+
+5. ステータス確認:
+   ```bash
+   sudo systemctl status basestation-webhook
+   ```
+
 ## Home Assistant 連携
 
 `configuration.yaml` に以下を追加:
