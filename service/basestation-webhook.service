@@ -6,7 +6,7 @@ After=network.target bluetooth.target
 Type=simple
 User=root
 WorkingDirectory=/opt/BaseStationWebhook
-ExecStart=/usr/bin/python3 run.py serve
+ExecStart=/opt/BaseStation2.0WebHook/venv/bin/python run.py serve
 Restart=always
 RestartSec=10
 Environment=PYTHONUNBUFFERED=1

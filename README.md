@@ -82,11 +82,17 @@ python run.py off --id bs1            # 特定のBase Station OFF
 
 Ubuntu / Raspberry Pi OS 等で自動起動させるための設定です。
 
-1. リポジトリを `/opt/` に配置します (例):
+1. リポジトリを `/opt/` に配置し、仮想環境を作成します (推奨):
    ```bash
    sudo mv BaseStationWebhook /opt/
    cd /opt/BaseStationWebhook
-   pip install -r requirements.txt
+   
+   # venvパッケージのインストール (Ubuntuの場合)
+   sudo apt install -y python3-venv python3-full
+
+   # 仮想環境の作成とライブラリインストール
+   python3 -m venv venv
+   ./venv/bin/pip install -r requirements.txt
    ```
 
 2. サービスファイルをコピーします:
