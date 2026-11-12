@@ -121,7 +121,7 @@ def cmd_scan(args):
 def cmd_on(args):
     """Base Stationの電源ON"""
     config = load_config()
-    controller = BLEController(connection_timeout=config.bluetooth.connection_timeout)
+    controller = BLEController.from_settings(config.bluetooth)
     
     if args.all:
         mac_addresses = config.get_all_mac_addresses()
@@ -131,10 +131,7 @@ def cmd_on(args):
         
         print(f"Powering ON {len(mac_addresses)} Base Station(s)...")
         results = asyncio.run(controller.power_on_all(mac_addresses))
-        
-        for mac, result in results.items():
-            status = "✓" if result == "success" else "✗"
-            print(f"  {status} {mac}: {result}")
+        _print_power_results(results)
     else:
         if not args.id:
             print("Error: Specify --id or --all")
@@ -146,14 +143,14 @@ def cmd_on(args):
             return
         
         print(f"Powering ON {bs.name} ({bs.mac_address})...")
-        success = asyncio.run(controller.power_on(bs.mac_address))
-        print("Success!" if success else "Failed!")
+        result = asyncio.run(controller.power_on(bs.mac_address))
+        _print_one_result(result)
 
 
 def cmd_off(args):
     """Base Stationの電源OFF"""
     config = load_config()
-    controller = BLEController(connection_timeout=config.bluetooth.connection_timeout)
+    controller = BLEController.from_settings(config.bluetooth)
     
     if args.all:
         mac_addresses = config.get_all_mac_addresses()
@@ -163,10 +160,7 @@ def cmd_off(args):
         
         print(f"Powering OFF {len(mac_addresses)} Base Station(s)...")
         results = asyncio.run(controller.power_off_all(mac_addresses))
-        
-        for mac, result in results.items():
-            status = "✓" if result == "success" else "✗"
-            print(f"  {status} {mac}: {result}")
+        _print_power_results(results)
     else:
         if not args.id:
             print("Error: Specify --id or --all")
@@ -178,8 +172,29 @@ def cmd_off(args):
             return
         
         print(f"Powering OFF {bs.name} ({bs.mac_address})...")
-        success = asyncio.run(controller.power_off(bs.mac_address))
-        print("Success!" if success else "Failed!")
+        result = asyncio.run(controller.power_off(bs.mac_address))
+        _print_one_result(result)
+
+
+def _print_one_result(result) -> None:
+    if result.success:
+        print(f"Success! (attempts={result.attempts})")
+        return
+    print(f"Failed after {result.attempts} attempt(s): {result.error}")
+    sys.exit(1)
+
+
+def _print_power_results(results) -> None:
+    failed = False
+    for mac, result in results.items():
+        mark = "✓" if result.success else "✗"
+        print(f"  {mark} {mac}: {result.status} (attempts={result.attempts})")
+        if result.error:
+            print(f"     {result.error}")
+        if not result.success:
+            failed = True
+    if failed:
+        sys.exit(1)
 
 
 def main():
@@ -194,6 +209,10 @@ Examples:
   python run.py on --all                 # Power on all stations
   python run.py off --all                # Power off all stations
   python run.py on --id bs1              # Power on specific station
+
+Home Assistant が待たずに戻したいときは
+  POST /api/basestations/all/on?wait=false
+を使う（202）。同期で結果を待つ既定の動作は wait=true。
         """
     )
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbose output')

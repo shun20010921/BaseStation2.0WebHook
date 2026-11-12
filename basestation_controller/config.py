@@ -36,13 +36,24 @@ class ServerConfig:
     """サーバー設定"""
     host: str = "0.0.0.0"
     port: int = 5000
+    # True のとき /all は完了まで待つ。False なら 202 ですぐ返す。
+    default_wait: bool = True
 
 
 @dataclass
 class BluetoothConfig:
-    """Bluetooth設定"""
+    """Bluetooth設定
+
+    max_concurrency の既定は 1。CSR Bluetooth 4.0 (0a12:0001) は
+    接続試行を同時に複数本出すと失敗しやすいため、台ごとに直列で行う。
+    """
     scan_timeout: float = 10.0
     connection_timeout: float = 15.0
+    discovery_timeout: float = 5.0
+    max_attempts: int = 3
+    retry_backoff: float = 1.0
+    max_concurrency: int = 1
+    command_interval: float = 0.5
 
 
 @dataclass
@@ -102,17 +113,27 @@ def load_config(config_path: Optional[Path] = None) -> AppConfig:
             data = yaml.safe_load(f) or {}
         
         # サーバー設定
-        server_data = data.get('server', {})
+        server_data = data.get('server', {}) or {}
         server = ServerConfig(
             host=server_data.get('host', '0.0.0.0'),
-            port=server_data.get('port', 5000)
+            port=_as_int(server_data, 'port', 5000, minimum=1),
+            default_wait=_as_bool(server_data, 'default_wait', True),
         )
         
         # Bluetooth設定
-        bt_data = data.get('bluetooth', {})
+        bt_data = data.get('bluetooth', {}) or {}
         bluetooth = BluetoothConfig(
-            scan_timeout=bt_data.get('scan_timeout', 10.0),
-            connection_timeout=bt_data.get('connection_timeout', 15.0)
+            scan_timeout=_as_float(bt_data, 'scan_timeout', 10.0, minimum=0.0),
+            connection_timeout=_as_float(bt_data, 'connection_timeout', 15.0, minimum=0.0),
+            discovery_timeout=_as_float(bt_data, 'discovery_timeout', 5.0, minimum=0.0),
+            max_attempts=_as_int(bt_data, 'max_attempts', 3, minimum=1),
+            retry_backoff=_as_float(
+                bt_data, 'retry_backoff', 1.0, minimum=0.0, allow_zero=True
+            ),
+            max_concurrency=_as_int(bt_data, 'max_concurrency', 1, minimum=1),
+            command_interval=_as_float(
+                bt_data, 'command_interval', 0.5, minimum=0.0, allow_zero=True
+            ),
         )
         
         # Base Station設定
@@ -160,11 +181,17 @@ def save_config(config: AppConfig, config_path: Optional[Path] = None) -> bool:
         data = {
             'server': {
                 'host': config.server.host,
-                'port': config.server.port
+                'port': config.server.port,
+                'default_wait': config.server.default_wait,
             },
             'bluetooth': {
                 'scan_timeout': config.bluetooth.scan_timeout,
-                'connection_timeout': config.bluetooth.connection_timeout
+                'connection_timeout': config.bluetooth.connection_timeout,
+                'discovery_timeout': config.bluetooth.discovery_timeout,
+                'max_attempts': config.bluetooth.max_attempts,
+                'retry_backoff': config.bluetooth.retry_backoff,
+                'max_concurrency': config.bluetooth.max_concurrency,
+                'command_interval': config.bluetooth.command_interval,
             },
             'base_stations': [bs.to_dict() for bs in config.base_stations]
         }
@@ -178,3 +205,69 @@ def save_config(config: AppConfig, config_path: Optional[Path] = None) -> bool:
     except Exception as e:
         logger.error(f"Error saving config: {e}")
         return False
+
+
+def _as_float(
+    data: dict,
+    key: str,
+    default: float,
+    minimum: float,
+    allow_zero: bool = False,
+) -> float:
+    """設定値を float にする。欠落・不正・下限未満は既定値。
+
+    minimum が 0 のタイムアウトは 0 自体も既定に戻す。待ち時間は allow_zero=True
+    で 0（待たない）を許可する。
+    """
+    if key not in data or data.get(key) is None:
+        return default
+    value = data[key]
+    if isinstance(value, bool):
+        logger.warning("Invalid %s=%r, using %s", key, value, default)
+        return default
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        logger.warning("Invalid %s=%r, using %s", key, value, default)
+        return default
+    if number < minimum or (number == 0.0 and not allow_zero):
+        logger.warning("%s=%s is out of range, using %s", key, number, default)
+        return default
+    return number
+
+
+def _as_int(data: dict, key: str, default: int, minimum: int) -> int:
+    """設定値を int にする。欠落・不正・下限未満は既定値。"""
+    if key not in data or data.get(key) is None:
+        return default
+    value = data[key]
+    if isinstance(value, bool):
+        logger.warning("Invalid %s=%r, using %s", key, value, default)
+        return default
+    try:
+        number = int(float(value))
+    except (TypeError, ValueError):
+        logger.warning("Invalid %s=%r, using %s", key, value, default)
+        return default
+    if number < minimum:
+        logger.warning("%s=%s is out of range, using %s", key, number, default)
+        return default
+    return number
+
+
+def _as_bool(data: dict, key: str, default: bool) -> bool:
+    """設定値を bool にする。"""
+    if key not in data or data.get(key) is None:
+        return default
+    value = data[key]
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    text = str(value).strip().lower()
+    if text in {"1", "true", "yes", "on"}:
+        return True
+    if text in {"0", "false", "no", "off"}:
+        return False
+    logger.warning("Invalid %s=%r, using %s", key, value, default)
+    return default
