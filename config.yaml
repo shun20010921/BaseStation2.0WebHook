@@ -11,6 +11,18 @@ base_stations:
 bluetooth:
   connection_timeout: 15
   scan_timeout: 10
+  # 接続前の find_device_by_address 待ち時間（秒）。未検出時はもう一度スキャンする
+  discovery_timeout: 5
+  # 1台あたりの試行回数
+  max_attempts: 3
+  # 失敗後の待ち時間（秒）。2回目は 2倍、3回目は 3倍
+  retry_backoff: 1.0
+  # CSR Bluetooth 4.0 (0a12:0001) は同時接続に弱いので既定は 1（台ごとに順次）
+  max_concurrency: 1
+  # max_concurrency が 1 のとき、台と台の間に空ける秒数
+  command_interval: 0.5
 server:
   host: 0.0.0.0
   port: 5000
+  # false にすると電源 API は既定で 202 を返してバックグラウンド実行する
+  default_wait: true
